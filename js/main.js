@@ -8,15 +8,15 @@ var Architect = neataptic.Architect;
 Config.warnings = false;
 
 /** Settings */
-var POPULATION_SIZE     = 50;
-var MAX_GENS     = 100;
+var POPULATION_SIZE     = 100;
+var MAX_GENS     = 20;
 var MAX_TRACKS     = 100;
 var MUTATION_RATE     = 0.1;
 var ELITISM_PERCENT   = 0.3;
 
 
 // Global vars
-var neat;
+var neat, cars;
 
 /** Construct the genetic algorithm */
 function initNeat(){
@@ -55,18 +55,16 @@ function initNeat(){
 /** Start the evaluation of the current generation */
 function startEvaluation(){
   // console.log("startEvaluation() with pop size " + neat.population.length)
-  players = [];
+  cars = [];
   highestScore = 0;
   bestGenome = neat.population[0];
 
-  //reset genome lives
+  // Reset car list
   neat.population.forEach(genome =>{
-    genome.live = true;
-    genome.score = 0;
-    genome.pos = 1;
+    cars.push(new Car(genome))
   })
 
-  //Generate tracks
+  // Generate tracks
   var tracks = [];
   for(var si = 0; si < MAX_TRACKS; si++){
     var newTrack = [1,1,1];
@@ -77,12 +75,12 @@ function startEvaluation(){
   var si = 0;
   tracks.forEach(track => {
     // console.log("Track ["+si+"]:", track);
+
     // Loop units
     var gi = 0;
-    neat.population.forEach(genome => {
-      genome = neat.population[gi];
-      if (genome.live)  {
-        var output = genome.activate(track);
+    cars.forEach(car => {
+      if (car.isLive)  {
+        var output = car.brain.activate(track);
 
         // Fitness
         var goneThrough = -1;
@@ -93,16 +91,16 @@ function startEvaluation(){
         else guessPos = 1;
 
         if (track[guessPos] == 0) {
-          genome.score++;
+          car.brain.score++;
         } else {
-          genome.live = false;
+          car.isLive = false;
         }
         
-        // console.log("[" + gi + "] output: ", output, ", GuessPos: ", guessPos, ", score: ", genome.score)
+        // console.log("[" + gi + "] output: ", output, ", GuessPos: ", guessPos, ", score: ", car.brain.score)
 
-        if (highestScore < genome.score) {
-          highestScore = genome.score
-          bestGenome = genome;
+        if (highestScore < car.brain.score) {
+          highestScore = car.brain.score
+          bestCar = car;
         }
       }
       gi++;
@@ -144,17 +142,9 @@ function endEvaluation(){
 
 
 // START
-
 initNeat();
 
-// // Create some food
-// for(var i = 0; i < FOOD_AMOUNT; i++){
-//   new Food();
-// }
-
 // Do some initial mutation
-
 for(var i = 0; i < 100; i++) neat.mutate();
-
 
 startEvaluation();

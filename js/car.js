@@ -1,19 +1,19 @@
-function Player(genome){
-  this.x = Math.floor(Math.random() * WIDTH);
-  this.y = Math.floor(Math.random() * HEIGHT);
-  this.vx = 0;
-  this.vy = 0;
-
+function Car(genome){
   this.brain = genome;
   this.brain.score = 0;
+  this.isLive = true;
+  this.pos = 1;
 
-  this.area = MIN_AREA;
-  this.visualarea = this.area;
+  // this.x = Math.floor(Math.random() * WIDTH);
+  // this.y = Math.floor(Math.random() * HEIGHT);
+  // this.vx = 0;
+  // this.vy = 0;
 
-  players.push(this);
+  // this.area = MIN_AREA;
+  // this.visualarea = this.area;
 }
 
-Player.prototype = {
+Car.prototype = {
   /** Update the stats */
   update: function(){
     if(this.area > MAX_AREA) this.area = MAX_AREA;
@@ -73,7 +73,7 @@ Player.prototype = {
       object = detected[object];
 
       if(object != undefined){
-        stroke(object instanceof Player ? 'red' : 'lightgreen');
+        stroke(object instanceof Car ? 'red' : 'lightgreen');
         line(this.x, this.y, object.x, object.y);
       }
     }
