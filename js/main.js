@@ -1,3 +1,4 @@
+
 /** Rename vars */
 var Neat    = neataptic.Neat;
 var Methods = neataptic.Methods;
@@ -6,27 +7,41 @@ var Architect = neataptic.Architect;
 
 /** Turn off warnings */
 Config.warnings = false;
+const DEBUG = 3;
+const HALF_DEBUG = 2;
+const LIVE = 1;
+var showMode = LIVE;
 
 /** Settings */
-var POPULATION_SIZE     = 100;
-var MAX_GENS     = 20;
-var MAX_TRACKS     = 100;
-var MUTATION_RATE     = 0.1;
+var POPULATION_SIZE     = 1;
+var MAX_GENS     = 1;
+var MUTATION_RATE     = 0.2;
 var ELITISM_PERCENT   = 0.3;
 
+const MAX_MOVES     = 100;
+const MAX_FOODS     = 10;
+const GRID_COLS = 10, GRID_ROWS = 10;
 
 // Global vars
-var neat, cars;
+var neat, cars, carIndex, bestCar, Field;
+var foods, foodIndex, currentFood;
+var allTimeBestMaxScore = 0;
+var allTimeBestAvgScore = 0;
+var lastPopAvgScore = 0;
+
+// Field
+const FOOD_CELL = 0.5;
+const CAR_CELL = 1;
+const EMPTY_CELL = 0;
+
 
 /** Construct the genetic algorithm */
 function initNeat(){
-  console.log("main->initNeat()")
   neat = new Neat(
-    3,
-    2,
-    function (unit) {
-      console.log("Fitnesas defaultinis!!!!!!!!!!!!!")
-      // console.log(unit)
+    GRID_COLS*GRID_ROWS,
+    4,
+    function () {
+      console.log("Using default fitness function")
     },
     {
       mutation: [
@@ -54,69 +69,76 @@ function initNeat(){
 
 /** Start the evaluation of the current generation */
 function startEvaluation(){
-  // console.log("startEvaluation() with pop size " + neat.population.length)
-  cars = [];
-  highestScore = 0;
-  bestGenome = neat.population[0];
 
   // Reset car list
+  cars = [];
+  carIndex = 0
+  bestCar = null;
   neat.population.forEach(genome =>{
-    cars.push(new Car(genome))
+    cars.push(new Car(genome, carIndex))
+    carIndex++;
   })
 
-  // Generate tracks
-  var tracks = [];
-  for(var si = 0; si < MAX_TRACKS; si++){
-    var newTrack = [1,1,1];
-    newTrack[Math.floor(Math.random()*3)] = 0;
-    tracks.push(newTrack)
+
+  // Generate foods
+  foods = [];
+  currentFood = null;
+  for(var i = 0; i < MAX_FOODS; i++){
+    foods.push(new Food())
   }
 
-  var si = 0;
-  tracks.forEach(track => {
-    // console.log("Track ["+si+"]:", track);
+  // Loop units for a game
+  cars.forEach(car => {
+    if (showMode > 1) console.log("#### Car ", car.index);
+    foodIndex = 0;
+    currentFood = null;
+    Field.cleanGrid();
 
-    // Loop units
-    var gi = 0;
-    cars.forEach(car => {
-      if (car.isLive)  {
-        var output = car.brain.activate(track);
+    while(serveFood() && car.totalMoves < MAX_MOVES && car.isLive) {
+      if (showMode > 1) console.log("## Food ", currentFood)
+      currentFood.reset();
+      Field.addFoodToGrid(currentFood, false);
 
-        // Fitness
-        var goneThrough = -1;
-        var guessPos = null;
-
-        if (output[0] > 0.5) guessPos = 0;
-        else if (output[1] > 0.5) guessPos = 2;
-        else guessPos = 1;
-
-        if (track[guessPos] == 0) {
-          car.brain.score++;
-        } else {
-          car.isLive = false;
-        }
-        
-        // console.log("[" + gi + "] output: ", output, ", GuessPos: ", guessPos, ", score: ", car.brain.score)
-
-        if (highestScore < car.brain.score) {
-          highestScore = car.brain.score
-          bestCar = car;
-        }
+      while(!currentFood.isEaten && car.totalMoves < MAX_MOVES && car.isLive) {
+          car.activateForDirection();
+          Field.processCarMove(car);
+          car.gridHistory.push( arrayClone(Field.grid) );
       }
-      gi++;
-    })     
-    si++;
-  })
+    }
 
-  if (neat.generation < MAX_GENS) endEvaluation();
+    // Calculate fitness
+    car.brain.score =  Math.round(car.totalMoves / MAX_MOVES) * 5;
+    car.brain.score += car.foodsEaten * 10;
+    // car.brain.score += (car.isLive) ? 3 : 0;
+    if (showMode > 1) console.log("Fitness", car.brain.score);
+
+    // Check if current car is the best one
+    if (bestCar == null || bestCar.brain.score < car.brain.score) bestCar = car;
+  
+  })  
+ 
+  // console.log("Track ["+ trackIndex +"]:", track);
+
+  endEvaluation();
 }
 
 /** End the evaluation of the current generation */
 function endEvaluation(){
-  console.log('Generation:', neat.generation, '- average score:', neat.getAverage(), " - maxScore: " + highestScore);
-  // console.log(bestGenome)
 
+  Field.addReport({
+    generationId: neat.generation,
+    avgScore: neat.getAverage(),
+    maxScore: bestCar.brain.score,
+    bestCar: bestCar
+  });
+
+  // add random value for elites and resort in case there would be equal scores
+  for(var i = 0; i < neat.elitism; i++){
+    neat.population[i].score += Math.random();
+    // console.log("elite " + i + ": ", neat.population[i].score)
+  }
   neat.sort();
+
   var newPopulation = [];
 
   // Elitism
@@ -135,16 +157,52 @@ function endEvaluation(){
 
   neat.generation++;
   neat.highestScore = 0;
-  startEvaluation();
+
+  if (neat.generation < MAX_GENS) startEvaluation();
 }
 
 
 
+function serveFood() {
+  if (foodIndex == null) foodIndex = 0;
+  else foodIndex++;
 
-// START
-initNeat();
+  if (foodIndex < foods.length) {
+    currentFood = foods[foodIndex];
+    return true;
+  }
+  else {
+    currentFood = null;
+    return false;
+  }
+}
 
-// Do some initial mutation
-for(var i = 0; i < 100; i++) neat.mutate();
 
-startEvaluation();
+function startLearning() {
+  // var POPULATION_SIZE     = 1;
+  // var MAX_GENS     = 1;
+  // var MUTATION_RATE     = 0.1;
+  // var ELITISM_PERCENT   = 0.4;
+
+  POPULATION_SIZE = $('#pop_size').val()
+  MAX_GENS = $('#generations').val()
+
+  console.log("startLearning()");
+
+  // initiate NEAT network
+  initNeat();
+
+  // Create Field object
+  Field = new FieldClass();
+  Field.initiate();
+
+  // Do some initial mutation
+  for(var i = 0; i < 100; i++) neat.mutate();
+
+  startEvaluation();
+}
+
+
+function arrayClone(sourceArray) {
+  return JSON.parse(JSON.stringify(sourceArray));
+}
